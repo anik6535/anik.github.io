@@ -1,0 +1,323 @@
+<!-- FULL CODE INCLUDING ADMIN PASSWORD FEATURE -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SecureChat Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #f4f8fb;
+      --text: #333;
+      --accent: #0077cc;
+      --header-bg: #ffffff;
+      --card: #ffffff;
+      --footer-bg: #e9eff3;
+      --dark-bg: #1e1e1e;
+      --dark-text: #f1f1f1;
+      --dark-card: #2a2a2a;
+    }
+    body.dark {
+      --bg: var(--dark-bg);
+      --text: var(--dark-text);
+      --header-bg: var(--dark-card);
+      --card: var(--dark-card);
+      --footer-bg: var(--dark-card);
+    }
+    * {
+      margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+    }
+    header {
+      background: var(--header-bg); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-wrap: wrap;
+    }
+    .logo { font-size: 1.5rem; font-weight: bold; color: var(--accent); }
+    .user-controls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .chat-container { padding: 1.5rem; max-width: 1000px; margin: auto; }
+    .stats { display: flex; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; }
+    .chat-box { border: 1px solid #ccc; border-radius: 10px; padding: 1rem; height: 400px; overflow-y: auto; background: var(--card); margin-bottom: 1rem; }
+    .chat-input { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    input[type="text"], input[type="file"], button, select {
+      padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; flex: 1;
+    }
+    #chat-message { flex-grow: 2; height: 60px; }
+    button { background: var(--accent); color: white; border: none; cursor: pointer; }
+    footer { background: var(--footer-bg); text-align: center; padding: 1rem; font-size: 0.9rem; }
+    .hidden { display: none; }
+    .message { margin: 0.5rem 0; padding: 0.5rem; border-radius: 8px; background: #e0f3ff; position: relative; }
+    .dark .message { background: #333; }
+    .timestamp { position: absolute; right: 10px; bottom: 5px; font-size: 0.7rem; color: #888; }
+    .settings-dropdown { position: relative; }
+    .settings-dropdown-content {
+      display: none; position: absolute; right: 0; background-color: var(--card);
+      box-shadow: 0px 2px 10px rgba(0,0,0,0.1); padding: 10px; border-radius: 5px; z-index: 10;
+    }
+    .settings-dropdown:hover .settings-dropdown-content { display: block; }
+    @media(max-width: 600px){
+      .chat-input, .stats { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div id="login-panel">
+    <div style="max-width:400px;margin:5rem auto;padding:2rem;border-radius:10px;background:var(--card);box-shadow:0 0 10px rgba(0,0,0,0.1)">
+      <h2 style="text-align:center;margin-bottom:1rem;color:var(--accent)">Login to SecureChat Pro</h2>
+      <input type="text" id="username" placeholder="Username (leave blank for anonymous)" style="width:100%;margin-bottom:1rem">
+      <input type="text" id="room-id" placeholder="Room ID" style="width:100%;margin-bottom:1rem">
+      <input type="password" id="room-password" placeholder="Room Password" style="width:100%;margin-bottom:1rem">
+      <button onclick="login()" style="width:100%">Enter Room</button>
+    </div>
+  </div>
+
+  <div id="chat-page" class="hidden">
+    <header>
+      <div class="logo">SecureChat Pro</div>
+      <div class="user-controls">
+        <div id="logged-user"></div>
+        <div class="settings-dropdown">
+          <img src="https://img.icons8.com/ios-filled/24/settings.png" alt="settings" style="cursor:pointer">
+          <div class="settings-dropdown-content">
+            <button onclick="toggleDarkMode()">Toggle Dark Mode</button><br><br>
+            <button onclick="logout()">Logout</button><br><br>
+            <label for="language-select">Translate to:</label><br>
+            <select id="language-select">
+              <option value="none">None</option>
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="hi">Hindi</option>
+              <option value="de">German</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="chat-container">
+      <div class="stats">
+        <div>Total Chats: <span id="chat-count">0</span></div>
+        <div>Users in Room: <span id="user-count">1</span></div>
+      </div>
+      <input type="text" id="search" placeholder="Search messages..." style="width:100%;margin-bottom:1rem" oninput="searchMessages()">
+      <div id="chat-box" class="chat-box"></div>
+      <div class="chat-input">
+        <input type="text" id="chat-message" placeholder="Type your message and emoji..." oninput="syncEmojiToInput()">
+        <select id="emoji" onchange="appendEmojiToInput()">
+          <option value="">😊</option>
+          <option>😂</option><option>👍</option><option>❤️</option><option>😎</option>
+        </select>
+        <input type="file" id="chat-file">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </main>
+    <footer>
+      <p>This platform provides secure and anonymous chatting. However, the website is not liable for any damages or risks arising due to user actions. Use at your own responsibility. 🙏</p>
+    </footer>
+  </div>
+
+<!-- Firebase & CryptoJS Scripts -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDJXO4IO8VhwHIev9cafUaLfO59X1hc3gM",
+  authDomain: "chat-pro-6535.firebaseapp.com",
+  databaseURL: "https://chat-pro-6535-default-rtdb.firebaseio.com",
+  projectId: "chat-pro-6535",
+  storageBucket: "chat-pro-6535.appspot.com",
+  messagingSenderId: "997418710025",
+  appId: "1:997418710025:web:6ef80a6ab9346ae91734d8",
+  measurementId: "G-BFMQVR66SY"
+};
+
+firebase.initializeApp(firebaseConfig);
+firebase.analytics();
+const database = firebase.database();
+
+let username = "";
+let roomId = "";
+let isAdmin = false;
+let messages = [];
+
+function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  return crypto.subtle.digest("SHA-256", data).then(hash =>
+    Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
+  );
+}
+
+function encrypt(text) {
+  return btoa(unescape(encodeURIComponent(text)));
+}
+function decrypt(text) {
+  return decodeURIComponent(escape(atob(text)));
+}
+
+async function login() {
+  username = document.getElementById("username").value.trim() || `User${Math.floor(Math.random() * 10000)}`;
+  const inputRoomId = document.getElementById("room-id").value.trim();
+  const password = document.getElementById("room-password").value.trim();
+  if (!inputRoomId || !password) return alert("Room ID and password required!");
+  roomId = inputRoomId;
+  const hashed = await hashPassword(password);
+  const roomRef = database.ref("rooms/" + roomId);
+
+  roomRef.once("value").then(async snapshot => {
+    const data = snapshot.val();
+    if (!data) {
+      isAdmin = true;
+      const twoFACode = prompt("Set a 2FA code (admin only):");
+      const adminPass = prompt("Set an admin password:");
+      const adminPassHash = await hashPassword(adminPass);
+      roomRef.set({ password: hashed, admin: username, twoFA: twoFACode, adminPass: adminPassHash });
+      enterChat();
+    } else if (data.password === hashed) {
+      if (data.banned && data.banned[username]) return alert("You are banned from this room.");
+      if (data.admin === username) {
+        const code = prompt("Enter 2FA code:");
+        const pass = prompt("Enter admin password:");
+        const passHash = await hashPassword(pass);
+        if (code !== data.twoFA || passHash !== data.adminPass) return alert("Invalid 2FA code or admin password!");
+        isAdmin = true;
+      }
+      enterChat();
+    } else {
+      alert("Incorrect room password!");
+    }
+  });
+}
+
+function enterChat() {
+  document.getElementById("login-panel").classList.add("hidden");
+  document.getElementById("chat-page").classList.remove("hidden");
+  document.getElementById("logged-user").innerText = username;
+
+  database.ref(`rooms/${roomId}/users/${username}`).set(true);
+  database.ref(`rooms/${roomId}/users`).on("value", snap => {
+    document.getElementById("user-count").innerText = snap.numChildren();
+    if (!snap.exists()) database.ref(`rooms/${roomId}`).remove();
+  });
+
+  window.addEventListener("beforeunload", () => {
+    database.ref(`rooms/${roomId}/users/${username}`).remove();
+  });
+  database.ref(`rooms/${roomId}/users/${username}`).onDisconnect().remove();
+
+  listenForMessages();
+  if (isAdmin) setupAdminTools();
+}
+
+function setupAdminTools() {
+  const settingsMenu = document.querySelector(".settings-dropdown-content");
+
+  const banBtn = document.createElement("button");
+  banBtn.textContent = "Ban User";
+  banBtn.onclick = () => {
+    const userToBan = prompt("Enter username to ban:");
+    if (userToBan) {
+      database.ref(`rooms/${roomId}/banned/${userToBan}`).set(true);
+      database.ref(`rooms/${roomId}/users/${userToBan}`).remove();
+    }
+  };
+  settingsMenu.appendChild(document.createElement("br"));
+  settingsMenu.appendChild(banBtn);
+}
+
+function sendMessage() {
+  const msgInput = document.getElementById("chat-message");
+  const fileInput = document.getElementById("chat-file");
+  const messageText = msgInput.value.trim();
+  if (!messageText && fileInput.files.length === 0) return;
+
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  let content = `<strong>${username}:</strong> ${messageText}<span class="timestamp">${timestamp}</span>`;
+
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const url = e.target.result;
+      if (file.type.startsWith("image")) content += `<br><img src="${url}" style="max-width:200px;margin-top:5px">`;
+      else content += `<br><a href="${url}" download="${file.name}">${file.name}</a>`;
+      const encrypted = encrypt(content);
+      database.ref(`rooms/${roomId}/messages`).push({ encrypted, timestamp: Date.now() });
+    };
+    reader.readAsDataURL(file);
+  } else {
+    const encrypted = encrypt(content);
+    database.ref(`rooms/${roomId}/messages`).push({ encrypted, timestamp: Date.now() });
+  }
+
+  msgInput.value = "";
+  fileInput.value = "";
+  document.getElementById("emoji").value = "";
+}
+
+function listenForMessages() {
+  const box = document.getElementById("chat-box");
+  database.ref(`rooms/${roomId}/messages`).on("child_added", async snap => {
+    const { encrypted } = snap.val();
+    const content = decrypt(encrypted);
+    const div = document.createElement("div");
+    div.className = "message";
+    div.innerHTML = content;
+
+    const lang = document.getElementById("language-select").value;
+    if (lang !== "none") {
+      const translated = await translateText(stripHTML(content), lang);
+      div.innerHTML += `<br><em style="color:gray;font-size:0.85em">(${translated})</em>`;
+    }
+
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    messages.push(content);
+    document.getElementById("chat-count").innerText = messages.length;
+
+    setTimeout(() => {
+      div.remove();
+    }, 60000);
+  });
+}
+
+function stripHTML(html) {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || div.innerText || "";
+}
+
+async function translateText(text, lang) {
+  return `[Translated to ${lang}]: ${text}`;
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle("dark");
+}
+function logout() {
+  location.reload();
+}
+function appendEmojiToInput() {
+  const emoji = document.getElementById("emoji").value;
+  document.getElementById("chat-message").value += emoji;
+}
+function syncEmojiToInput() {
+  document.getElementById("emoji").value = "";
+}
+function searchMessages() {
+  const query = document.getElementById("search").value.toLowerCase();
+  const chatBox = document.getElementById("chat-box");
+  const messages = chatBox.querySelectorAll(".message");
+  messages.forEach(msg => {
+    msg.style.display = msg.textContent.toLowerCase().includes(query) ? "block" : "none";
+  });
+}
+</script>
+</body>
+</html>
